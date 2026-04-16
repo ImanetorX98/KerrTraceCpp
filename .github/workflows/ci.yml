@@ -1,0 +1,55 @@
+name: KerrTraceCpp CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-regress:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        run: python -m pip install --upgrade pip numpy pillow
+
+      - name: Download LibTorch (CPU)
+        run: LIBTORCH_FLAVOR=cpu bash scripts/download_libtorch.sh
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build_ci \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/libtorch" \
+            -DTorch_DIR="${{ github.workspace }}/libtorch/share/cmake/Torch" \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build_ci --parallel 4
+
+      - name: Prepare runtime launcher
+        run: |
+          mkdir -p build_arm64
+          cp build_ci/kerrtrace build_arm64/kerrtrace
+          chmod +x build_arm64/kerrtrace
+
+      - name: Generate regression fixtures if missing
+        run: |
+          if [ ! -f tests/fixtures/reference/baseline_160x90.png ] || [ ! -f tests/fixtures/reference/advanced_160x90.png ]; then
+            bash scripts/generate_regression_fixtures.sh
+          fi
+
+      - name: Regression suite
+        run: python scripts/run_regression_suite.py --psnr-min 32 --ssim-min 0.92

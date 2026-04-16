@@ -8,6 +8,7 @@
 #include <fstream>
 #include <filesystem>
 #include <chrono>
+#include <algorithm>
 
 using namespace kerrtrace;
 
@@ -110,6 +111,11 @@ int main(int argc, char** argv)
 
     // ── Output ────────────────────────────────────────────────────────────────
     app.add_option("--output,-o", cfg.output, "Output PNG path");
+    app.add_flag  ("--keep-frames", cfg.keep_frames, "Keep animation PNG frames after encoding");
+    app.add_flag  ("--resume-frames", cfg.resume_frames, "Resume animation by skipping existing frame files");
+    app.add_option("--frames-dir", cfg.frames_dir, "Custom animation frames directory");
+    app.add_option("--video-codec", cfg.video_codec, "Video codec: h264|h265");
+    app.add_option("--progress-file", cfg.progress_file, "Optional progress status file path");
 
     // ── Animation ─────────────────────────────────────────────────────────────
     app.add_flag  ("--animate",                cfg.animate,              "Render animation");
@@ -169,7 +175,12 @@ int main(int argc, char** argv)
         // ── Single frame ──────────────────────────────────────────────────────
         Raytracer rt(cfg);
 
-        int rows_done = 0;
+        auto write_progress_file = [&](const std::string& line) {
+            if (cfg.progress_file.empty()) return;
+            std::ofstream pf(cfg.progress_file, std::ios::out | std::ios::trunc);
+            if (pf) pf << line << "\n";
+        };
+
         auto progress = [&](int done, int total) {
             float pct = 100.0f * done / total;
             // Simple progress bar
@@ -180,6 +191,9 @@ int main(int argc, char** argv)
                 std::cout << (i < filled ? '#' : ' ');
             std::cout << "] " << std::fixed << std::setprecision(1) << pct << "%  ";
             std::cout.flush();
+            write_progress_file("mode=frame done_rows=" + std::to_string(done)
+                + " total_rows=" + std::to_string(total)
+                + " pct=" + std::to_string(pct));
         };
 
         auto img = rt.render(progress);
@@ -197,37 +211,64 @@ int main(int argc, char** argv)
                   << "  Rays:  " << total_rays << "\n"
                   << "  Time:  " << std::fixed << std::setprecision(2)
                   << elapsed << "s\n";
+        if (!cfg.progress_file.empty()) {
+            std::ofstream pf(cfg.progress_file, std::ios::out | std::ios::trunc);
+            if (pf) pf << "mode=frame status=done time_s=" << elapsed << "\n";
+        }
 
     } else {
         // ── Animation ─────────────────────────────────────────────────────────
         std::filesystem::path out_path(cfg.output);
         auto stem = out_path.stem().string();
-        auto frames_dir = out_path.parent_path() / (stem + "_frames");
+        auto frames_dir = cfg.frames_dir.empty()
+            ? (out_path.parent_path() / (stem + "_frames"))
+            : std::filesystem::path(cfg.frames_dir);
 
         int total_frames = static_cast<int>(
             std::round(cfg.animation_duration * cfg.animation_fps));
         std::cout << "  Frames dir: " << frames_dir << "\n";
 
-        render_animation(cfg, frames_dir,
+        render_animation(cfg, frames_dir, cfg.resume_frames,
             [&](int done, int total) {
                 std::cout << "\r  Frame " << done << "/" << total << "  ";
                 std::cout.flush();
+                if (!cfg.progress_file.empty()) {
+                    float pct = 100.0f * static_cast<float>(done) / std::max(1, total);
+                    std::ofstream pf(cfg.progress_file, std::ios::out | std::ios::trunc);
+                    if (pf) {
+                        pf << "mode=animation done_frames=" << done
+                           << " total_frames=" << total
+                           << " pct=" << pct << "\n";
+                    }
+                }
             });
         std::cout << "\n";
 
         // Encode video
         std::cout << "  Encoding video → " << cfg.output << " ...\n";
-        bool ok = encode_video(frames_dir, cfg.output, cfg.animation_fps);
+        bool ok = encode_video(frames_dir, cfg.output, cfg.animation_fps, cfg.video_codec);
         if (!ok) {
             std::cerr << "  Warning: ffmpeg encoding failed. "
                          "Frames saved to: " << frames_dir << "\n";
         } else {
             std::cout << "  Video saved: " << cfg.output << "\n";
+            if (!cfg.keep_frames) {
+                std::error_code ec;
+                std::filesystem::remove_all(frames_dir, ec);
+                if (ec) {
+                    std::cerr << "  Warning: could not remove frames directory: "
+                              << frames_dir << " (" << ec.message() << ")\n";
+                }
+            }
         }
 
         auto t1 = std::chrono::steady_clock::now();
         double elapsed = std::chrono::duration<double>(t1 - t0).count();
         std::cout << "  Total time: " << elapsed << "s\n";
+        if (!cfg.progress_file.empty()) {
+            std::ofstream pf(cfg.progress_file, std::ios::out | std::ios::trunc);
+            if (pf) pf << "mode=animation status=done time_s=" << elapsed << "\n";
+        }
     }
 
     return 0;

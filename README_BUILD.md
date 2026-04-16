@@ -78,6 +78,18 @@ If macOS cannot find `libomp.dylib`, use the helper launcher:
             --output out/orbit.mp4
 ```
 
+Resume/keep/runtime controls:
+
+```bash
+./build_arm64/kerrtrace --animate \
+  --animation-duration 10 --animation-fps 10 \
+  --resume-frames --keep-frames \
+  --frames-dir out/my_video_frames \
+  --video-codec h265 \
+  --progress-file out/my_video.progress.txt \
+  --output out/my_video.mp4
+```
+
 ### Advanced disk controls (layered + differential + volume)
 
 ```bash
@@ -110,6 +122,26 @@ Outputs:
 - `cpp_reference.png`
 - `python_vs_cpp_side_by_side.png`
 - `metrics.txt` (`mae`, `rmse`, `psnr_db`)
+
+## Regression & Validation
+
+Generate deterministic fixtures:
+
+```bash
+bash scripts/generate_regression_fixtures.sh
+```
+
+Run regression checks (PSNR/SSIM + Python-style config acceptance):
+
+```bash
+python3 scripts/run_regression_suite.py
+```
+
+Profile tile-size memory/time behavior:
+
+```bash
+bash scripts/profile_tiles.sh
+```
 
 ## Parameters (mirrors Python KerrTrace)
 

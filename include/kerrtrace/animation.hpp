@@ -20,6 +20,7 @@ std::vector<FrameSpec> build_frame_schedule(const RenderConfig& base_cfg);
 std::filesystem::path render_animation(
     const RenderConfig& base_cfg,
     const std::filesystem::path& frames_dir,
+    bool resume_existing = false,
     std::function<void(int /*frame*/, int /*total*/)> progress = nullptr
 );
 

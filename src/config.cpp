@@ -117,6 +117,8 @@ void validate(const RenderConfig& cfg)
         throw std::invalid_argument("hdri_path is required when background_mode='hdri'");
     if (cfg.hdri_exposure <= 0.0f)
         throw std::invalid_argument("hdri_exposure must be > 0");
+    if (cfg.video_codec != "h264" && cfg.video_codec != "h265")
+        throw std::invalid_argument("video_codec must be 'h264' or 'h265'");
 
     // RIAF
     if (cfg.disk_model == "riaf") {
@@ -210,6 +212,11 @@ void to_json(nlohmann::json& j, const RenderConfig& c)
         {"gargantua_look_strength", c.gargantua_look_strength},
         {"gargantua_look_preset",   c.gargantua_look_preset},
         {"output",                  c.output},
+        {"keep_frames",             c.keep_frames},
+        {"resume_frames",           c.resume_frames},
+        {"frames_dir",              c.frames_dir},
+        {"video_codec",             c.video_codec},
+        {"progress_file",           c.progress_file},
         {"animate",                 c.animate},
         {"animation_duration",      c.animation_duration},
         {"animation_fps",           c.animation_fps},
@@ -251,7 +258,7 @@ void from_json(const nlohmann::json& j, RenderConfig& c)
     JG(star_density); JG(star_brightness); JG(hdri_path);
     JG(hdri_exposure); JG(hdri_rotation_deg);
     JG(postprocess_pipeline); JG(gargantua_look_strength); JG(gargantua_look_preset);
-    JG(output);
+    JG(output); JG(keep_frames); JG(resume_frames); JG(frames_dir); JG(video_codec); JG(progress_file);
     JG(animate); JG(animation_duration); JG(animation_fps);
     JG(animation_parameter); JG(animation_start); JG(animation_end);
     JG(animation_workers);

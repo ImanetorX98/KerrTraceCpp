@@ -3,7 +3,8 @@
 # Run once before cmake.
 
 set -e
-TORCH_VERSION="2.3.1"
+TORCH_VERSION="${TORCH_VERSION:-2.3.1}"
+LIBTORCH_FLAVOR="${LIBTORCH_FLAVOR:-auto}"  # auto|cpu|cu121
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TARGET="${DIR}/libtorch"
 
@@ -22,8 +23,11 @@ if [ "$OS" = "Darwin" ]; then
         URL="https://download.pytorch.org/libtorch/cpu/libtorch-macos-${TORCH_VERSION}.zip"
     fi
 elif [ "$OS" = "Linux" ]; then
-    # Linux CUDA 12.1 build — change cu121 → cpu for CPU-only
-    URL="https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-${TORCH_VERSION}%2Bcu121.zip"
+    if [ "${LIBTORCH_FLAVOR}" = "cpu" ] || [ "${LIBTORCH_FLAVOR}" = "auto" ]; then
+        URL="https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-${TORCH_VERSION}%2Bcpu.zip"
+    else
+        URL="https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-${TORCH_VERSION}%2Bcu121.zip"
+    fi
 else
     echo "Unsupported OS: $OS. Download LibTorch manually from https://pytorch.org/get-started/locally/"
     exit 1

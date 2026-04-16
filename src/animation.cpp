@@ -49,6 +49,7 @@ std::vector<FrameSpec> build_frame_schedule(const RenderConfig& base)
 std::filesystem::path render_animation(
     const RenderConfig& base_cfg,
     const std::filesystem::path& frames_dir,
+    bool resume_existing,
     std::function<void(int, int)> progress)
 {
     std::filesystem::create_directories(frames_dir);
@@ -66,14 +67,21 @@ std::filesystem::path render_animation(
             if (idx >= total) break;
 
             const auto& spec = schedule[idx];
+
+            std::ostringstream ss;
+            ss << "frame_" << std::setw(5) << std::setfill('0') << spec.frame_index << ".png";
+            auto path = frames_dir / ss.str();
+
+            if (resume_existing && std::filesystem::exists(path)) {
+                int completed = ++done_frames;
+                if (progress) progress(completed, total);
+                continue;
+            }
+
             Raytracer rt(spec.cfg);
             auto img = rt.render();
             img = rt.postprocess(img);
 
-            // Frame filename: frame_00000.png
-            std::ostringstream ss;
-            ss << "frame_" << std::setw(5) << std::setfill('0') << spec.frame_index << ".png";
-            auto path = frames_dir / ss.str();
             save_png(img, path.string());
 
             int completed = ++done_frames;

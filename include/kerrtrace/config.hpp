@@ -102,6 +102,11 @@ struct RenderConfig {
 
     // ── Output ─────────────────────────────────────────────────────────────
     std::string output               = "out/render.png";
+    bool  keep_frames                = false;
+    bool  resume_frames              = false;
+    std::string frames_dir           = "";
+    std::string video_codec          = "h264"; // h264|h265
+    std::string progress_file        = "";
 
     // ── Animation ──────────────────────────────────────────────────────────
     bool  animate                    = false;
