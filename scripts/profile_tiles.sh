@@ -55,16 +55,23 @@ for rows in "${ROWS_LIST[@]}"; do
 
   elapsed="$(awk '/  Time:/{print $(NF)}' "${LOG}" | tail -n1 | sed 's/s$//')"
   if [ "${TIME_MODE}" = "macos" ]; then
-    maxrss_kb="$(awk '/maximum resident set size/{print $1}' "${LOG}" | tail -n1)"
+    maxrss_raw="$(awk '/maximum resident set size/{print $1}' "${LOG}" | tail -n1)"
   else
-    maxrss_kb="$(awk -F': ' '/Maximum resident set size/{print $2}' "${LOG}" | tail -n1)"
+    maxrss_raw="$(awk -F': ' '/Maximum resident set size/{print $2}' "${LOG}" | tail -n1)"
   fi
-  if [ -z "${maxrss_kb}" ]; then
-    maxrss_kb=0
+  if [ -z "${maxrss_raw}" ]; then
+    maxrss_raw=0
   fi
   maxrss_mb="$(python3 - <<PY
-kb=float("${maxrss_kb}")
-print(f"{kb/1024.0:.1f}")
+raw=float("${maxrss_raw}")
+mode="${TIME_MODE}"
+if mode == "macos":
+    # /usr/bin/time -l reports bytes on macOS.
+    mb = raw / (1024.0 * 1024.0)
+else:
+    # /usr/bin/time -v reports kB on Linux.
+    mb = raw / 1024.0
+print(f"{mb:.1f}")
 PY
 )"
   echo "| ${rows} | ${elapsed:-0} | ${maxrss_mb} | ${OUT} |" >> "${REPORT}"
