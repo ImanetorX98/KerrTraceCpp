@@ -194,6 +194,9 @@ torch::Tensor Raytracer::render_tile(int row_start, int row_end) const
             // φ at crossing
             auto phi_cross = state.select(1, 2)
                            + t_frac * (new_state.select(1, 2) - state.select(1, 2));
+            auto p_theta_cross = state.select(1, 5)
+                               + t_frac * (new_state.select(1, 5) - state.select(1, 5));
+            auto p_theta_abs = torch::abs(p_theta_cross);
 
             // Check radial bounds and order cap
             auto in_disk = crossed
@@ -202,7 +205,7 @@ torch::Tensor Raytracer::render_tile(int row_start, int row_end) const
                 & (disk_order < float(max_order));
 
             if (in_disk.any().item<bool>()) {
-                auto emission = disk_emission(r_cross, phi_cross, E, L, in_disk, disk_order);
+                auto emission = disk_emission(r_cross, phi_cross, p_theta_abs, E, L, in_disk, disk_order);
                 accumulated = accumulated + emission;
                 disk_order  = disk_order + in_disk.to(dtype_);
             }
@@ -239,6 +242,7 @@ torch::Tensor Raytracer::render_tile(int row_start, int row_end) const
 torch::Tensor Raytracer::disk_emission(
     const torch::Tensor& r_cross,
     const torch::Tensor& phi_cross,
+    const torch::Tensor& p_theta_abs,
     const torch::Tensor& E,
     const torch::Tensor& L,
     const torch::Tensor& in_disk,
@@ -290,6 +294,97 @@ torch::Tensor Raytracer::disk_emission(
         auto x   = ((r_cross - r_in) / std::max(r_out - r_in, EPS)).clamp(0.0f, 1.0f);
         intensity = torch::pow(1.0f - x, 3.0f);
         color     = named_palette(cfg_.disk_palette, 1.0f - x);
+    }
+
+    // Optional layered palette blended over base color.
+    if (cfg_.disk_layered_palette) {
+        const float pi2 = 2.0f * static_cast<float>(M_PI);
+        const int n_layers = std::max(2, cfg_.disk_layer_count);
+        const float n_layers_f = static_cast<float>(n_layers);
+        const float span_safe = std::max(r_out - r_in, EPS);
+        auto x = ((r_cross - r_in) / span_safe).clamp(0.0f, 1.0f - 1.0e-7f);
+
+        auto layer_pos = torch::clamp(x * n_layers_f, 0.0f, n_layers_f - 1.0e-6f);
+        auto layer_idx = torch::floor(layer_pos);
+        auto layer_idx_next = torch::minimum(layer_idx + 1.0f, torch::full_like(layer_idx, n_layers_f - 1.0f));
+        auto layer_frac = torch::clamp(layer_pos - layer_idx, 0.0f, 1.0f);
+
+        auto u0 = (layer_idx + 0.5f) / n_layers_f;
+        auto u1 = (layer_idx_next + 0.5f) / n_layers_f;
+        auto c0 = palette_interstellar_warm(u0);
+        auto c1 = palette_interstellar_warm(u1);
+        auto base_layer_color = c0 + (c1 - c0) * layer_frac.unsqueeze(1);
+
+        auto flow_phi = phi_cross * cfg_.disk_layer_time_scale - cfg_.disk_layer_global_phase;
+        auto tile_gain = torch::ones_like(flow_phi);
+        if (cfg_.enable_disk_differential_rotation && cfg_.disk_diffrot_strength > 0.0f) {
+            float strength = cfg_.disk_diffrot_strength;
+            float seed = static_cast<float>(cfg_.disk_diffrot_seed);
+            auto radial_key = u0;
+            auto raw = torch::sin(
+                (layer_idx + 1.0f) * 12.9898f
+                + (radial_key + 1.0f) * 78.233f
+                + seed * 37.719f
+                + 0.5f
+            ) * 43758.5453f;
+            auto phase_offset = (fract_tensor(raw) - 0.5f) * pi2;
+            flow_phi = torch::remainder(flow_phi + 0.36f * strength * phase_offset, pi2);
+
+            if (cfg_.disk_diffrot_visual_mode != "layer_phase") {
+                auto tile_drive = flow_phi * (1.0f + 0.15f * strength)
+                                + (layer_idx + 1.0f) * 0.37f
+                                + radial_key * 3.1f;
+                auto tile_wave = 0.5f + 0.5f * torch::sin(tile_drive);
+                if (cfg_.disk_diffrot_visual_mode == "hybrid") {
+                    auto fine_wave = 0.5f + 0.5f * torch::sin(1.73f * tile_drive + 0.5f * flow_phi);
+                    tile_wave = 0.62f * tile_wave + 0.38f * fine_wave;
+                }
+                tile_gain = torch::clamp(0.82f + 0.36f * tile_wave, 0.55f, 1.45f);
+            }
+        }
+
+        auto phase = cfg_.disk_layer_pattern_count * flow_phi + pi2 * layer_idx / n_layers_f;
+        auto wave = 0.5f + 0.5f * torch::sin(phase);
+        auto wave2 = 0.5f + 0.5f * torch::sin(0.73f * phase + 8.0f * u0);
+        auto contrast = torch::clamp(torch::scalar_tensor(cfg_.disk_layer_pattern_contrast, opts), 0.0f, 1.0f);
+        auto band = (1.0f - contrast) + contrast * (0.28f + 0.72f * wave * (0.82f + 0.18f * wave2));
+        band = band * tile_gain;
+
+        if (cfg_.disk_layer_accident_strength > 0.0f) {
+            auto accident_strength = torch::scalar_tensor(cfg_.disk_layer_accident_strength, opts);
+            auto accident_count = torch::scalar_tensor(cfg_.disk_layer_accident_count, opts);
+            auto accident_sharp = torch::scalar_tensor(cfg_.disk_layer_accident_sharpness, opts);
+            auto inner_weight = torch::pow(torch::clamp(1.0f - u0, 0.0f, 1.0f), 0.35f);
+            auto seg_count = torch::clamp(2.0f + 4.0f * accident_count, 2.0f, 512.0f);
+            auto phi_unit = torch::remainder(flow_phi / pi2, 1.0f);
+            auto seg_pos = phi_unit * seg_count;
+            auto seg_idx = torch::floor(seg_pos);
+            auto seg_frac = seg_pos - seg_idx;
+            auto edge = torch::clamp(0.10f / torch::clamp_min(accident_sharp, 1.0f), 0.004f, 0.08f);
+            auto duty = torch::clamp(0.78f - 0.055f * torch::clamp_min(accident_sharp - 1.0f, 0.0f), 0.14f, 0.88f);
+            auto rise = torch::clamp(seg_frac / torch::clamp_min(edge, 1.0e-4f), 0.0f, 1.0f);
+            auto fall = torch::clamp((duty - seg_frac) / torch::clamp_min(edge, 1.0e-4f), 0.0f, 1.0f);
+            auto in_rect = torch::where(seg_frac < duty, torch::minimum(rise, fall), torch::zeros_like(seg_frac));
+            auto seg_hash = fract_tensor(torch::sin((layer_idx + 1.0f) * 127.1f + (seg_idx + 1.0f) * 311.7f + 17.0f * u0) * 43758.5453f);
+            auto accident_profile = torch::clamp(in_rect * (0.35f + 0.65f * seg_hash), 0.0f, 1.0f);
+            auto accident_boost = torch::clamp(
+                1.0f + accident_strength * inner_weight * (1.60f * accident_profile - 0.30f),
+                0.45f,
+                3.2f
+            );
+            band = band * accident_boost;
+        }
+
+        auto odd = torch::remainder(layer_idx, 2.0f);
+        auto tint_shift = (odd * 2.0f - 1.0f) * 0.03f;
+        auto tint = torch::stack({
+            torch::clamp(1.0f + 0.5f * tint_shift, 0.85f, 1.15f),
+            torch::clamp(1.0f - 0.2f * tint_shift, 0.85f, 1.15f),
+            torch::clamp(1.0f - 0.8f * tint_shift, 0.80f, 1.20f)
+        }, 1);
+        auto layered_color = torch::clamp(base_layer_color * tint * band.unsqueeze(1), 0.0f, 1.5f);
+        float layer_mix = std::clamp(cfg_.disk_layer_mix, 0.0f, 1.0f);
+        color = (1.0f - layer_mix) * color + layer_mix * layered_color;
     }
 
     // Optional segmented palette (rings/sectors) blended over base color.
@@ -357,7 +452,7 @@ torch::Tensor Raytracer::disk_emission(
             }
         }
 
-        auto seg_color = color_acc / torch::clamp(weight_acc, 1.0e-8f).unsqueeze(1);
+        auto seg_color = color_acc / torch::clamp_min(weight_acc, 1.0e-8f).unsqueeze(1);
         float seg_mix = std::clamp(cfg_.disk_segmented_mix, 0.0f, 1.0f);
         color = (1.0f - seg_mix) * color + seg_mix * seg_color;
     }
@@ -373,8 +468,32 @@ torch::Tensor Raytracer::disk_emission(
                 + cfg_.inner_edge_boost * inner_rim
                 + cfg_.outer_edge_boost * outer_rim;
 
+    // Optional disk volume emission factor.
+    auto volume_factor = torch::ones_like(intensity);
+    if (cfg_.disk_volume_emission && cfg_.disk_volume_strength > 0.0f) {
+        auto h_eff = 0.015f * torch::clamp_min(r_cross, 1.0f);
+        auto mu_los = p_theta_abs / torch::clamp_min(p_theta_abs + 0.10f, 1.0e-6f);
+        auto path_len = (2.0f * h_eff) / torch::clamp_min(mu_los, 0.04f);
+        auto tau = cfg_.disk_volume_density_scale * path_len / torch::clamp_min(r_cross, 1.0e-6f);
+        auto trans = 1.0f - torch::exp(-torch::clamp(tau, 0.0f, 40.0f));
+
+        int ns = std::max(1, cfg_.disk_volume_samples);
+        auto temp_factor = torch::ones_like(intensity);
+        if (ns > 1) {
+            auto zeta = torch::linspace(-1.0f, 1.0f, ns, opts).view({1, ns});
+            auto sigma = torch::scalar_tensor(0.48f, opts);
+            auto rho = torch::exp(-0.5f * torch::square(zeta / sigma));
+            auto temp_mod = 1.0f - cfg_.disk_volume_temperature_drop * torch::abs(zeta);
+            auto angle_mod = 0.85f + 0.15f * mu_los.unsqueeze(1);
+            auto kernel = rho * temp_mod * angle_mod;
+            auto denom = torch::clamp(torch::sum(rho, 1, true), 1.0e-8f);
+            temp_factor = torch::sum(kernel, 1) / denom.squeeze(1);
+        }
+        volume_factor = 1.0f + cfg_.disk_volume_strength * trans * torch::clamp_min(temp_factor, 0.0f);
+    }
+
     // ── Combine ───────────────────────────────────────────────────────────
-    auto final_intensity = (intensity * edge_w * rel_gain * order_gain)
+    auto final_intensity = (intensity * edge_w * rel_gain * order_gain * volume_factor)
                            .clamp(0.0f, 100.0f)
                            .unsqueeze(1);
 

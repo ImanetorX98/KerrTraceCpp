@@ -77,6 +77,38 @@ void validate(const RenderConfig& cfg)
         throw std::invalid_argument("disk_segmented_mix must be in [0, 1]");
     if (cfg.disk_segmented_palette_mode != "accretion_warm" && cfg.disk_segmented_palette_mode != "rainbow")
         throw std::invalid_argument("disk_segmented_palette_mode must be 'accretion_warm' or 'rainbow'");
+    if (cfg.disk_layer_count < 2 || cfg.disk_layer_count > 512)
+        throw std::invalid_argument("disk_layer_count must be in [2, 512]");
+    if (cfg.disk_layer_mix < 0.0f || cfg.disk_layer_mix > 1.0f)
+        throw std::invalid_argument("disk_layer_mix must be in [0, 1]");
+    if (cfg.disk_layer_pattern_count <= 0.0f || cfg.disk_layer_pattern_count > 1024.0f)
+        throw std::invalid_argument("disk_layer_pattern_count must be in (0, 1024]");
+    if (cfg.disk_layer_pattern_contrast < 0.0f || cfg.disk_layer_pattern_contrast > 1.0f)
+        throw std::invalid_argument("disk_layer_pattern_contrast must be in [0, 1]");
+    if (cfg.disk_layer_time_scale <= 0.0f || cfg.disk_layer_time_scale > 64.0f)
+        throw std::invalid_argument("disk_layer_time_scale must be in (0, 64]");
+    if (cfg.disk_layer_accident_strength < 0.0f || cfg.disk_layer_accident_strength > 4.0f)
+        throw std::invalid_argument("disk_layer_accident_strength must be in [0, 4]");
+    if (cfg.disk_layer_accident_count < 0.0f || cfg.disk_layer_accident_count > 128.0f)
+        throw std::invalid_argument("disk_layer_accident_count must be in [0, 128]");
+    if (cfg.disk_layer_accident_sharpness < 1.0f || cfg.disk_layer_accident_sharpness > 32.0f)
+        throw std::invalid_argument("disk_layer_accident_sharpness must be in [1, 32]");
+    if (cfg.disk_diffrot_visual_mode != "layer_phase"
+        && cfg.disk_diffrot_visual_mode != "annular_tiles"
+        && cfg.disk_diffrot_visual_mode != "hybrid")
+        throw std::invalid_argument("disk_diffrot_visual_mode must be 'layer_phase', 'annular_tiles', or 'hybrid'");
+    if (cfg.disk_diffrot_strength < 0.0f || cfg.disk_diffrot_strength > 3.0f)
+        throw std::invalid_argument("disk_diffrot_strength must be in [0, 3]");
+    if (cfg.disk_diffrot_seed < 0)
+        throw std::invalid_argument("disk_diffrot_seed must be >= 0");
+    if (cfg.disk_volume_samples < 1 || cfg.disk_volume_samples > 64)
+        throw std::invalid_argument("disk_volume_samples must be in [1, 64]");
+    if (cfg.disk_volume_density_scale < 0.0f || cfg.disk_volume_density_scale > 1000.0f)
+        throw std::invalid_argument("disk_volume_density_scale must be in [0, 1000]");
+    if (cfg.disk_volume_temperature_drop < 0.0f || cfg.disk_volume_temperature_drop > 1.0f)
+        throw std::invalid_argument("disk_volume_temperature_drop must be in [0, 1]");
+    if (cfg.disk_volume_strength < 0.0f || cfg.disk_volume_strength > 10.0f)
+        throw std::invalid_argument("disk_volume_strength must be in [0, 10]");
     if (cfg.max_steps < 10 || cfg.max_steps > 100000)
         throw std::invalid_argument("max_steps must be in [10, 100000]");
     if (cfg.step_size <= 0.0f)
@@ -137,6 +169,18 @@ void to_json(nlohmann::json& j, const RenderConfig& c)
         {"disk_layered_palette",    c.disk_layered_palette},
         {"disk_layer_count",        c.disk_layer_count},
         {"disk_layer_mix",          c.disk_layer_mix},
+        {"disk_layer_pattern_count", c.disk_layer_pattern_count},
+        {"disk_layer_pattern_contrast", c.disk_layer_pattern_contrast},
+        {"disk_layer_time_scale",   c.disk_layer_time_scale},
+        {"disk_layer_accident_strength", c.disk_layer_accident_strength},
+        {"disk_layer_accident_count", c.disk_layer_accident_count},
+        {"disk_layer_accident_sharpness", c.disk_layer_accident_sharpness},
+        {"disk_layer_global_phase", c.disk_layer_global_phase},
+        {"disk_layer_phase_rate_hz", c.disk_layer_phase_rate_hz},
+        {"enable_disk_differential_rotation", c.enable_disk_differential_rotation},
+        {"disk_diffrot_visual_mode", c.disk_diffrot_visual_mode},
+        {"disk_diffrot_strength", c.disk_diffrot_strength},
+        {"disk_diffrot_seed", c.disk_diffrot_seed},
         {"disk_segmented_palette",  c.disk_segmented_palette},
         {"disk_segmented_rings",    c.disk_segmented_rings},
         {"disk_segmented_sectors",  c.disk_segmented_sectors},
@@ -144,6 +188,11 @@ void to_json(nlohmann::json& j, const RenderConfig& c)
         {"disk_segmented_mix",      c.disk_segmented_mix},
         {"disk_segmented_hue_offset", c.disk_segmented_hue_offset},
         {"disk_segmented_palette_mode", c.disk_segmented_palette_mode},
+        {"disk_volume_emission", c.disk_volume_emission},
+        {"disk_volume_samples", c.disk_volume_samples},
+        {"disk_volume_density_scale", c.disk_volume_density_scale},
+        {"disk_volume_temperature_drop", c.disk_volume_temperature_drop},
+        {"disk_volume_strength", c.disk_volume_strength},
         {"max_steps",               c.max_steps},
         {"step_size",               c.step_size},
         {"adaptive_integrator",     c.adaptive_integrator},
@@ -186,9 +235,16 @@ void from_json(const nlohmann::json& j, RenderConfig& c)
     JG(riaf_alpha_n); JG(riaf_alpha_T); JG(riaf_alpha_B);
     JG(riaf_T_visual); JG(riaf_color_mode);
     JG(disk_layered_palette); JG(disk_layer_count); JG(disk_layer_mix);
+    JG(disk_layer_pattern_count); JG(disk_layer_pattern_contrast); JG(disk_layer_time_scale);
+    JG(disk_layer_accident_strength); JG(disk_layer_accident_count); JG(disk_layer_accident_sharpness);
+    JG(disk_layer_global_phase); JG(disk_layer_phase_rate_hz);
+    JG(enable_disk_differential_rotation); JG(disk_diffrot_visual_mode);
+    JG(disk_diffrot_strength); JG(disk_diffrot_seed);
     JG(disk_segmented_palette); JG(disk_segmented_rings); JG(disk_segmented_sectors);
     JG(disk_segmented_sigma); JG(disk_segmented_mix); JG(disk_segmented_hue_offset);
     JG(disk_segmented_palette_mode);
+    JG(disk_volume_emission); JG(disk_volume_samples); JG(disk_volume_density_scale);
+    JG(disk_volume_temperature_drop); JG(disk_volume_strength);
     JG(max_steps); JG(step_size); JG(adaptive_integrator);
     JG(device); JG(dtype); JG(render_tile_rows);
     JG(background_mode); JG(enable_star_background);

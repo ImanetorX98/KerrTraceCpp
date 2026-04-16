@@ -47,11 +47,18 @@ struct RenderConfig {
     bool  disk_layered_palette              = true;
     int   disk_layer_count                  = 30;
     float disk_layer_mix                    = 0.55f;
+    float disk_layer_pattern_count          = 14.0f;
+    float disk_layer_pattern_contrast       = 0.45f;
+    float disk_layer_time_scale             = 1.0f;
     float disk_layer_accident_strength      = 0.42f;
     float disk_layer_accident_count         = 3.8f;
     float disk_layer_accident_sharpness     = 7.0f;
     float disk_layer_global_phase           = 0.0f;
     float disk_layer_phase_rate_hz          = 0.35f;
+    bool  enable_disk_differential_rotation = false;
+    std::string disk_diffrot_visual_mode    = "layer_phase"; // layer_phase|annular_tiles|hybrid
+    float disk_diffrot_strength             = 1.0f;
+    int   disk_diffrot_seed                 = 7;
 
     // ── Segmented disk palette ─────────────────────────────────────────────
     bool  disk_segmented_palette     = false;
@@ -61,6 +68,13 @@ struct RenderConfig {
     float disk_segmented_mix         = 1.0f;
     float disk_segmented_hue_offset  = 0.0f;
     std::string disk_segmented_palette_mode = "accretion_warm"; // accretion_warm|rainbow
+
+    // ── Disk volume emission ───────────────────────────────────────────────
+    bool  disk_volume_emission              = false;
+    int   disk_volume_samples               = 5;
+    float disk_volume_density_scale         = 1.0f;
+    float disk_volume_temperature_drop      = 0.28f;
+    float disk_volume_strength              = 0.85f;
 
     // ── Integration ────────────────────────────────────────────────────────
     int   max_steps                  = 500;

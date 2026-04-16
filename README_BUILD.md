@@ -78,6 +78,21 @@ If macOS cannot find `libomp.dylib`, use the helper launcher:
             --output out/orbit.mp4
 ```
 
+### Advanced disk controls (layered + differential + volume)
+
+```bash
+./scripts/run_kerrtrace.sh \
+  --width 1280 --height 720 \
+  --spin 0.85 --observer-radius 30 --observer-inclination 70 \
+  --background-mode hdri --hdri-path ../KerrTrace/assets/backgrounds/downloads_imported/sfondo3.jpg \
+  --enable-disk-layered-palette --disk-layer-count 24 --disk-layer-mix 0.75 \
+  --disk-layer-pattern-count 18 --disk-layer-pattern-contrast 0.55 \
+  --enable-disk-differential-rotation --disk-diffrot-visual-mode hybrid --disk-diffrot-strength 1.0 \
+  --enable-disk-volume-emission --disk-volume-samples 7 --disk-volume-density-scale 1.4 --disk-volume-strength 1.1 \
+  --enable-disk-segmented-palette --disk-segmented-palette-mode accretion_warm \
+  --output out/advanced_disk.png
+```
+
 ### From JSON config
 
 ```bash

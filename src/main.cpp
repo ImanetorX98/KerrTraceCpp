@@ -51,6 +51,20 @@ int main(int argc, char** argv)
     app.add_option("--inner-edge-boost",    cfg.inner_edge_boost,    "Inner rim brightness boost");
     app.add_option("--outer-edge-boost",    cfg.outer_edge_boost,    "Outer rim brightness boost");
     app.add_option("--disk-beaming-strength", cfg.disk_beaming_strength, "Relativistic beaming exponent");
+    app.add_flag  ("--enable-disk-layered-palette", cfg.disk_layered_palette, "Enable layered disk palette");
+    app.add_option("--disk-layer-count", cfg.disk_layer_count, "Layered palette layer count");
+    app.add_option("--disk-layer-mix", cfg.disk_layer_mix, "Layered palette blend [0,1]");
+    app.add_option("--disk-layer-pattern-count", cfg.disk_layer_pattern_count, "Layer pattern frequency");
+    app.add_option("--disk-layer-pattern-contrast", cfg.disk_layer_pattern_contrast, "Layer pattern contrast [0,1]");
+    app.add_option("--disk-layer-time-scale", cfg.disk_layer_time_scale, "Layer flow time scale");
+    app.add_option("--disk-layer-global-phase", cfg.disk_layer_global_phase, "Layer global phase offset (rad)");
+    app.add_option("--disk-layer-accident-strength", cfg.disk_layer_accident_strength, "Layer inhomogeneity strength");
+    app.add_option("--disk-layer-accident-count", cfg.disk_layer_accident_count, "Layer inhomogeneity density");
+    app.add_option("--disk-layer-accident-sharpness", cfg.disk_layer_accident_sharpness, "Layer inhomogeneity sharpness");
+    app.add_flag  ("--enable-disk-differential-rotation", cfg.enable_disk_differential_rotation, "Enable differential rotation visual modulation");
+    app.add_option("--disk-diffrot-visual-mode", cfg.disk_diffrot_visual_mode, "Differential rotation visual mode: layer_phase|annular_tiles|hybrid");
+    app.add_option("--disk-diffrot-strength", cfg.disk_diffrot_strength, "Differential rotation visual strength");
+    app.add_option("--disk-diffrot-seed", cfg.disk_diffrot_seed, "Differential rotation random seed");
     app.add_flag  ("--enable-disk-segmented-palette",  cfg.disk_segmented_palette, "Enable segmented disk palette");
     app.add_option("--disk-segmented-rings",   cfg.disk_segmented_rings,   "Segmented palette rings");
     app.add_option("--disk-segmented-sectors", cfg.disk_segmented_sectors, "Segmented palette sectors");
@@ -65,6 +79,11 @@ int main(int argc, char** argv)
     app.add_option("--riaf-alpha-b",   cfg.riaf_alpha_B,    "RIAF B power-law index");
     app.add_option("--riaf-t-visual",  cfg.riaf_T_visual,   "RIAF visual temp at ISCO (K)");
     app.add_option("--riaf-color-mode",cfg.riaf_color_mode, "RIAF colour: blackbody|plasma|interstellar_warm|gargantua");
+    app.add_flag  ("--enable-disk-volume-emission", cfg.disk_volume_emission, "Enable disk volume emission boost");
+    app.add_option("--disk-volume-samples", cfg.disk_volume_samples, "Vertical samples for volume emission");
+    app.add_option("--disk-volume-density-scale", cfg.disk_volume_density_scale, "Volume density scale");
+    app.add_option("--disk-volume-temperature-drop", cfg.disk_volume_temperature_drop, "Vertical temperature drop [0,1]");
+    app.add_option("--disk-volume-strength", cfg.disk_volume_strength, "Volume emission strength");
 
     // ── Integration ───────────────────────────────────────────────────────────
     app.add_option("--max-steps",  cfg.max_steps,  "Max geodesic integration steps");

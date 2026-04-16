@@ -27,7 +27,7 @@ Bring `KerrTraceCpp` to practical feature parity with the Python `kerrtrace` pip
 - [x] Port missing background features:
   - HDRI equirectangular loading/sampling
   - exposure/rotation controls
-- [ ] Port additional disk options used in Python workflows:
+- [x] Port additional disk options used in Python workflows:
   - layered palette controls
   - differential rotation visual options
   - disk volume emission controls

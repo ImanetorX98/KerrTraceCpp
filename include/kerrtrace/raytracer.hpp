@@ -28,6 +28,7 @@ private:
     torch::Tensor disk_emission(
         const torch::Tensor& r_cross,
         const torch::Tensor& phi_cross,
+        const torch::Tensor& p_theta_abs,
         const torch::Tensor& E,
         const torch::Tensor& L,
         const torch::Tensor& in_disk_mask,
