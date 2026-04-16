@@ -78,6 +78,8 @@ int main(int argc, char** argv)
     // ── Background ────────────────────────────────────────────────────────────
     app.add_option("--background-mode", cfg.background_mode,       "darkspace|hdri|procedural");
     app.add_option("--hdri-path",       cfg.hdri_path,             "Path to HDRI panorama");
+    app.add_option("--hdri-exposure",   cfg.hdri_exposure,         "HDRI exposure multiplier");
+    app.add_option("--hdri-rotation-deg", cfg.hdri_rotation_deg,   "HDRI azimuth rotation (deg)");
     app.add_option("--star-density",    cfg.star_density,          "Star field density");
     app.add_option("--star-brightness", cfg.star_brightness,       "Star brightness");
 

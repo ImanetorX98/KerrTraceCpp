@@ -81,6 +81,10 @@ void validate(const RenderConfig& cfg)
         throw std::invalid_argument("max_steps must be in [10, 100000]");
     if (cfg.step_size <= 0.0f)
         throw std::invalid_argument("step_size must be > 0");
+    if (cfg.background_mode == "hdri" && cfg.hdri_path.empty())
+        throw std::invalid_argument("hdri_path is required when background_mode='hdri'");
+    if (cfg.hdri_exposure <= 0.0f)
+        throw std::invalid_argument("hdri_exposure must be > 0");
 
     // RIAF
     if (cfg.disk_model == "riaf") {
@@ -151,6 +155,8 @@ void to_json(nlohmann::json& j, const RenderConfig& c)
         {"star_density",            c.star_density},
         {"star_brightness",         c.star_brightness},
         {"hdri_path",               c.hdri_path},
+        {"hdri_exposure",           c.hdri_exposure},
+        {"hdri_rotation_deg",       c.hdri_rotation_deg},
         {"postprocess_pipeline",    c.postprocess_pipeline},
         {"gargantua_look_strength", c.gargantua_look_strength},
         {"gargantua_look_preset",   c.gargantua_look_preset},
@@ -187,6 +193,7 @@ void from_json(const nlohmann::json& j, RenderConfig& c)
     JG(device); JG(dtype); JG(render_tile_rows);
     JG(background_mode); JG(enable_star_background);
     JG(star_density); JG(star_brightness); JG(hdri_path);
+    JG(hdri_exposure); JG(hdri_rotation_deg);
     JG(postprocess_pipeline); JG(gargantua_look_strength); JG(gargantua_look_preset);
     JG(output);
     JG(animate); JG(animation_duration); JG(animation_fps);

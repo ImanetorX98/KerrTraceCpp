@@ -84,6 +84,18 @@ If macOS cannot find `libomp.dylib`, use the helper launcher:
 ./build_arm64/kerrtrace --config my_config.json --output out/result.png
 ```
 
+### Python vs C++ parity reference (single command)
+
+```bash
+bash scripts/generate_parity_reference.sh out/parity_reference
+```
+
+Outputs:
+- `python_reference.png`
+- `cpp_reference.png`
+- `python_vs_cpp_side_by_side.png`
+- `metrics.txt` (`mae`, `rmse`, `psnr_db`)
+
 ## Parameters (mirrors Python KerrTrace)
 
 | Flag | Python equivalent | Default |

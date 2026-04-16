@@ -46,6 +46,7 @@ private:
     const RenderConfig cfg_;
     torch::Device device_;
     torch::Dtype  dtype_;
+    torch::Tensor hdri_tex_;
     float a_;       // spin
     float r_isco_;
     float r_horizon_;

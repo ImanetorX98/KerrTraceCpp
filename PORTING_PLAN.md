@@ -19,10 +19,12 @@ Bring `KerrTraceCpp` to practical feature parity with the Python `kerrtrace` pip
   - warm natural mode
   - rainbow mode
 - [x] Build and run smoke test on local machine with LibTorch present.
-- [ ] Save side-by-side reference frames (`Python vs C++`) for a fixed seed/config.
+- [x] Save side-by-side reference frames (`Python vs C++`) for a fixed seed/config.
+  - Script: `scripts/generate_parity_reference.sh`
+  - Last local run (CPU, 320x180): `MAE=55.3322`, `RMSE=92.7303`, `PSNR=8.79 dB`
 
 ## Phase 2: Feature Gap Closure
-- [ ] Port missing background features:
+- [x] Port missing background features:
   - HDRI equirectangular loading/sampling
   - exposure/rotation controls
 - [ ] Port additional disk options used in Python workflows:

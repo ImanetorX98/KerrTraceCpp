@@ -1,5 +1,6 @@
 #include "kerrtrace/raytracer.hpp"
 #include "kerrtrace/geometry.hpp"
+#include "kerrtrace/image_io.hpp"
 #include "kerrtrace/palette.hpp"
 #include "kerrtrace/config.hpp"
 #include <algorithm>
@@ -81,6 +82,16 @@ Raytracer::Raytracer(const RenderConfig& cfg)
 {
     r_isco_    = isco_radius(a_);
     r_horizon_ = event_horizon_radius(a_, cfg.charge);
+
+    if (cfg_.background_mode == "hdri" && !cfg_.hdri_path.empty()) {
+        try {
+            auto tex_opts = torch::TensorOptions().dtype(dtype_).device(device_);
+            hdri_tex_ = load_png(cfg_.hdri_path, tex_opts).contiguous();
+        } catch (const std::exception& e) {
+            std::cerr << "Warning: failed to load HDRI '" << cfg_.hdri_path
+                      << "': " << e.what() << "\n";
+        }
+    }
 }
 
 // ── Main render ───────────────────────────────────────────────────────────────
@@ -380,11 +391,45 @@ torch::Tensor Raytracer::background_color(
     const torch::Tensor& state,
     const torch::Tensor& escaped_mask) const
 {
+    using namespace torch::indexing;
     auto opts = torch::TensorOptions().dtype(dtype_).device(device_);
     int N = static_cast<int>(state.size(0));
     auto bg = torch::zeros({N, 3}, opts);
 
-    if (cfg_.background_mode == "darkspace") {
+    if (cfg_.background_mode == "hdri") {
+        if (hdri_tex_.defined() && hdri_tex_.numel() > 0) {
+            const float PI = static_cast<float>(M_PI);
+            auto phi = state.select(1, 2);
+            auto theta = state.select(1, 1);
+            auto rot = cfg_.hdri_rotation_deg * (PI / 180.0f);
+
+            auto u = torch::remainder(phi + rot, 2.0f * PI) / (2.0f * PI);
+            auto v = (theta / PI).clamp(0.0f, 1.0f);
+
+            int tex_h = static_cast<int>(hdri_tex_.size(0));
+            int tex_w = static_cast<int>(hdri_tex_.size(1));
+
+            auto x = torch::clamp(u, 0.0f, 1.0f) * static_cast<float>(tex_w - 1);
+            auto y = torch::clamp(v, 0.0f, 1.0f) * static_cast<float>(tex_h - 1);
+
+            auto x0 = torch::floor(x).to(torch::kLong);
+            auto y0 = torch::floor(y).to(torch::kLong);
+            auto x1 = torch::remainder(x0 + 1, tex_w);
+            auto y1 = torch::clamp(y0 + 1, 0, tex_h - 1);
+
+            auto tx = (x - x0.to(dtype_)).unsqueeze(1);
+            auto ty = (y - y0.to(dtype_)).unsqueeze(1);
+
+            auto c00 = hdri_tex_.index({y0, x0});
+            auto c10 = hdri_tex_.index({y0, x1});
+            auto c01 = hdri_tex_.index({y1, x0});
+            auto c11 = hdri_tex_.index({y1, x1});
+
+            auto c0 = c00 * (1.0f - tx) + c10 * tx;
+            auto c1 = c01 * (1.0f - tx) + c11 * tx;
+            bg = (c0 * (1.0f - ty) + c1 * ty) * cfg_.hdri_exposure;
+        }
+    } else if (cfg_.background_mode == "darkspace") {
         if (!cfg_.enable_star_background) {
             return bg * escaped_mask.to(dtype_).unsqueeze(1);
         }
@@ -416,8 +461,6 @@ torch::Tensor Raytracer::background_color(
         auto star_color = torch::stack({R, G, B}, 1);
         bg = torch::where(is_star.unsqueeze(1).expand_as(star_color), star_color, bg);
     }
-    // hdri: TODO (load and sample equirectangular image)
-
     return bg * escaped_mask.to(dtype_).unsqueeze(1);
 }
 
