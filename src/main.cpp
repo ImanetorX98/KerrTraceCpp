@@ -52,6 +52,7 @@ int main(int argc, char** argv)
     app.add_option("--inner-edge-boost",    cfg.inner_edge_boost,    "Inner rim brightness boost");
     app.add_option("--outer-edge-boost",    cfg.outer_edge_boost,    "Outer rim brightness boost");
     app.add_option("--disk-beaming-strength", cfg.disk_beaming_strength, "Relativistic beaming exponent");
+    app.add_option("--disk-self-occlusion-strength", cfg.disk_self_occlusion_strength, "Self-occlusion for grazing rays [0,1]");
     app.add_flag  ("--enable-disk-layered-palette", cfg.disk_layered_palette, "Enable layered disk palette");
     app.add_option("--disk-layer-count", cfg.disk_layer_count, "Layered palette layer count");
     app.add_option("--disk-layer-mix", cfg.disk_layer_mix, "Layered palette blend [0,1]");

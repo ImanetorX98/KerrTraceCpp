@@ -162,7 +162,8 @@ void to_json(nlohmann::json& j, const RenderConfig& c)
         {"disk_radial_profile",     c.disk_radial_profile},
         {"inner_edge_boost",        c.inner_edge_boost},
         {"outer_edge_boost",        c.outer_edge_boost},
-        {"disk_beaming_strength",   c.disk_beaming_strength},
+        {"disk_beaming_strength",        c.disk_beaming_strength},
+        {"disk_self_occlusion_strength", c.disk_self_occlusion_strength},
         {"riaf_alpha_n",            c.riaf_alpha_n},
         {"riaf_alpha_T",            c.riaf_alpha_T},
         {"riaf_alpha_B",            c.riaf_alpha_B},
@@ -238,7 +239,7 @@ void from_json(const nlohmann::json& j, RenderConfig& c)
     JG(observer_azimuth_deg); JG(observer_roll_deg);
     JG(disk_model); JG(disk_inner_radius); JG(disk_outer_radius);
     JG(disk_emission_gain); JG(disk_palette); JG(disk_radial_profile);
-    JG(inner_edge_boost); JG(outer_edge_boost); JG(disk_beaming_strength);
+    JG(inner_edge_boost); JG(outer_edge_boost); JG(disk_beaming_strength); JG(disk_self_occlusion_strength);
     JG(riaf_alpha_n); JG(riaf_alpha_T); JG(riaf_alpha_B);
     JG(riaf_T_visual); JG(riaf_color_mode);
     JG(disk_layered_palette); JG(disk_layer_count); JG(disk_layer_mix);

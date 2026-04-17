@@ -33,8 +33,9 @@ void save_png(const torch::Tensor& rgb, const std::string& path)
     int H = static_cast<int>(img.size(0));
     int W = static_cast<int>(img.size(1));
 
-    // Tone-map: ACES filmic
-    auto toned = tonemap_aces(img).clamp(0.0f, 1.0f);
+    // Tone-map: ACES filmic → gamma 2.2 encode (matches Python pipeline)
+    auto toned = torch::pow(tonemap_aces(img).clamp(0.0f, 1.0f),
+                            1.0f / 2.2f);
 
     // Convert to uint8
     auto u8 = (toned * 255.0f).round().clamp(0.0f, 255.0f).to(torch::kUInt8);

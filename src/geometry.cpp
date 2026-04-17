@@ -290,12 +290,15 @@ torch::Tensor relativistic_factor(
     auto norm2   = -(g_tt + 2.0f * g_tp * Omega_K + g_pp * Omega_K * Omega_K);
     auto u_t     = 1.0f / torch::sqrt(norm2.clamp_min(EPS));
 
-    // ξ = (E - L*Ω_K) * u_t
-    auto xi = (E - L * Omega_K) * u_t;
-    xi = xi.clamp_min(EPS);
+    // g = E / ((E - L·Ω_K)·u_t)  — Doppler/gravitational blueshift factor
+    // Matches Python: g_factor = (-p_t) / (u_t*(E - L*omega))
+    auto xi       = (E - L * Omega_K) * u_t;
+    auto g_factor = (E / xi.clamp_min(EPS)).clamp(0.0f, 6.0f);
 
-    // Observed intensity ∝ ξ^(3+beaming)
-    return torch::pow(xi, 3.0f + beaming_strength);
+    // Python exact formula: pow(g,3) * pow(max(g,0.2), beaming) * occlusion
+    // (occlusion is applied separately in disk_emission)
+    auto beaming = torch::pow(g_factor.clamp(0.2f, 6.0f), beaming_strength);
+    return torch::pow(g_factor, 3.0f) * beaming;
 }
 
 } // namespace kerrtrace

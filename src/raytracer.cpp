@@ -254,9 +254,19 @@ torch::Tensor Raytracer::disk_emission(
     float r_in  = (cfg_.disk_inner_radius > 0.f) ? cfg_.disk_inner_radius : r_isco_;
     float r_out = cfg_.disk_outer_radius;
 
-    // ── Relativistic factor ────────────────────────────────────────────────
+    // ── Relativistic factor (g^(3+b)) ─────────────────────────────────────
     auto rel_gain = relativistic_factor(
         r_cross.clamp_min(r_in + EPS), E, L, a_, cfg_.disk_beaming_strength);
+
+    // Self-occlusion: grazing rays (small p_θ) are attenuated
+    // Python: mu = p_θ / (p_θ + 0.20),  occlusion = (1-s) + s*sqrt(mu)
+    {
+        auto mu = p_theta_abs / (p_theta_abs + 0.20f).clamp_min(1.0e-6f);
+        float s = cfg_.disk_self_occlusion_strength;
+        auto occlusion = (1.0f - s) + s * torch::sqrt(mu.clamp(0.0f, 1.0f));
+        rel_gain = rel_gain * occlusion;
+    }
+
     // For photon rings (order > 0) intensity falls off
     auto order_gain = torch::exp(-order * 0.6f);
 
@@ -457,14 +467,22 @@ torch::Tensor Raytracer::disk_emission(
         color = (1.0f - seg_mix) * color + seg_mix * seg_color;
     }
 
-    // ── Inner / outer edge boost ───────────────────────────────────────────
+    // ── Edge weights — matches Python exactly ─────────────────────────────
     float span = std::max(r_out - r_in, EPS);
     auto x_norm = ((r_cross - r_in) / span).clamp(0.0f, 1.0f);
-    auto inner_rim = torch::exp(-x_norm * 20.0f);        // sharp inner glow
-    auto outer_rim = torch::exp(-(1.0f - x_norm) * 8.0f);
 
-    auto edge_w = 0.5f
-                + intensity
+    // Gaussian rim glows (Python: exp(-((r-r_in)/width)^2))
+    float inner_width = 0.05f * span + 1.0e-3f;
+    float outer_width = 0.10f * span + 1.0e-3f;
+    auto dr_inner = (r_cross - r_in) / inner_width;
+    auto dr_outer = (r_out - r_cross) / outer_width;
+    auto inner_rim = torch::exp(-(dr_inner * dr_inner));
+    auto outer_rim = torch::exp(-(dr_outer * dr_outer));
+
+    // body = pow(1-x, 0.35) — smooth radial weight (Python)
+    auto body = torch::pow((1.0f - x_norm).clamp(0.0f, 1.0f), 0.35f);
+
+    auto edge_w = 0.22f + body
                 + cfg_.inner_edge_boost * inner_rim
                 + cfg_.outer_edge_boost * outer_rim;
 

@@ -27,14 +27,15 @@ struct RenderConfig {
     std::string disk_model           = "physical_nt"; // physical_nt | legacy | riaf
     float disk_inner_radius          = -1.0f;          // <0 → auto (ISCO)
     float disk_outer_radius          = 12.0f;
-    float disk_emission_gain         = 30.0f;
+    float disk_emission_gain         = 1.0f;   // matches Python default
     std::string disk_palette         = "default";      // default | interstellar_warm
     std::string disk_radial_profile  = "nt_page_thorne"; // nt_page_thorne | nt_proxy
 
     // Disk edge boosts
-    float inner_edge_boost           = 1.0f;
-    float outer_edge_boost           = 0.5f;
-    float disk_beaming_strength      = 1.0f;
+    float inner_edge_boost             = 1.0f;
+    float outer_edge_boost             = 0.5f;
+    float disk_beaming_strength        = 0.45f;   // matches Python default
+    float disk_self_occlusion_strength = 0.35f;
 
     // ── RIAF model ─────────────────────────────────────────────────────────
     float riaf_alpha_n               = 1.1f;   // n_e ∝ r^{-α_n}
