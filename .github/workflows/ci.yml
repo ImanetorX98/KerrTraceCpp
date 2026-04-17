@@ -1,18 +1,19 @@
-name: KerrTraceCpp CI
+name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  TORCH_VERSION: "2.3.1"
 
 jobs:
-  build-and-regress:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  # ── Linux: full build + regression ─────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -21,35 +22,193 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
+          cache: "pip"
 
       - name: Install Python deps
-        run: python -m pip install --upgrade pip numpy pillow
+        run: pip install numpy pillow
 
-      - name: Download LibTorch (CPU)
+      - name: Cache LibTorch
+        id: cache-libtorch
+        uses: actions/cache@v4
+        with:
+          path: libtorch
+          key: libtorch-${{ env.TORCH_VERSION }}-cpu-linux-x86_64
+
+      - name: Download LibTorch
+        if: steps.cache-libtorch.outputs.cache-hit != 'true'
         run: LIBTORCH_FLAVOR=cpu bash scripts/download_libtorch.sh
 
-      - name: Configure CMake
+      - name: Cache CMake FetchContent
+        uses: actions/cache@v4
+        with:
+          path: build_ci/_deps
+          key: cmake-deps-linux-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Configure
         run: |
           cmake -S . -B build_ci \
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/libtorch" \
-            -DTorch_DIR="${{ github.workspace }}/libtorch/share/cmake/Torch" \
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build_ci --parallel 4
+        run: cmake --build build_ci --parallel $(nproc)
 
-      - name: Prepare runtime launcher
+      - name: Prepare launcher
         run: |
           mkdir -p build_arm64
           cp build_ci/kerrtrace build_arm64/kerrtrace
-          chmod +x build_arm64/kerrtrace
 
-      - name: Generate regression fixtures if missing
+      - name: Version smoke
+        run: bash scripts/run_kerrtrace.sh --version
+
+      - name: Help smoke
+        run: bash scripts/run_kerrtrace.sh --help > /dev/null
+
+      - name: CLI smoke render
         run: |
-          if [ ! -f tests/fixtures/reference/baseline_160x90.png ] || [ ! -f tests/fixtures/reference/advanced_160x90.png ]; then
-            bash scripts/generate_regression_fixtures.sh
-          fi
+          bash scripts/run_kerrtrace.sh \
+            --width 64 --height 64 \
+            --device cpu \
+            --max-steps 64 \
+            --step-size 0.3 \
+            --output out/ci_smoke.png
+          test -f out/ci_smoke.png
 
       - name: Regression suite
         run: python scripts/run_regression_suite.py --psnr-min 32 --ssim-min 0.92
+
+      - name: Upload smoke render
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-render-linux
+          path: out/ci_smoke.png
+          retention-days: 7
+
+  # ── macOS: build + smoke only (no full regression, saves runner minutes) ───
+  build-macos:
+    runs-on: macos-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache LibTorch
+        id: cache-libtorch
+        uses: actions/cache@v4
+        with:
+          path: libtorch
+          key: libtorch-${{ env.TORCH_VERSION }}-cpu-macos-arm64
+
+      - name: Download LibTorch
+        if: steps.cache-libtorch.outputs.cache-hit != 'true'
+        run: LIBTORCH_FLAVOR=cpu bash scripts/download_libtorch.sh
+
+      - name: Cache CMake FetchContent
+        uses: actions/cache@v4
+        with:
+          path: build_ci/_deps
+          key: cmake-deps-macos-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Configure
+        run: |
+          cmake -S . -B build_ci \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/libtorch" \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build_ci --parallel $(sysctl -n hw.logicalcpu)
+
+      - name: Prepare launcher
+        run: |
+          mkdir -p build_arm64
+          cp build_ci/kerrtrace build_arm64/kerrtrace
+
+      - name: Version smoke
+        run: bash scripts/run_kerrtrace.sh --version
+
+      - name: CLI smoke render
+        run: |
+          bash scripts/run_kerrtrace.sh \
+            --width 64 --height 64 \
+            --device cpu \
+            --max-steps 64 \
+            --step-size 0.3 \
+            --output out/ci_smoke.png
+          test -f out/ci_smoke.png
+
+      - name: Upload smoke render
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-render-macos
+          path: out/ci_smoke.png
+          retention-days: 7
+
+  # ── Windows: build + smoke only ─────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache LibTorch
+        id: cache-libtorch
+        uses: actions/cache@v4
+        with:
+          path: libtorch
+          key: libtorch-${{ env.TORCH_VERSION }}-cpu-windows-x64
+
+      - name: Download LibTorch
+        if: steps.cache-libtorch.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $url = "https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-${{ env.TORCH_VERSION }}%2Bcpu.zip"
+          curl.exe -fL -o libtorch.zip $url
+          Expand-Archive -Path libtorch.zip -DestinationPath . -Force
+          Remove-Item libtorch.zip
+
+      - name: Cache CMake FetchContent
+        uses: actions/cache@v4
+        with:
+          path: build_ci/_deps
+          key: cmake-deps-windows-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build_ci `
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}\libtorch" `
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build build_ci --config Release --parallel
+
+      - name: Version smoke
+        shell: pwsh
+        run: .\build_ci\Release\kerrtrace.exe --version
+
+      - name: CLI smoke render
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          .\build_ci\Release\kerrtrace.exe `
+            --width 64 --height 64 `
+            --device cpu `
+            --max-steps 64 `
+            --step-size 0.3 `
+            --output out\ci_smoke.png
+          if (-not (Test-Path "out\ci_smoke.png")) { exit 1 }
+
+      - name: Upload smoke render
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-render-windows
+          path: out\ci_smoke.png
+          retention-days: 7

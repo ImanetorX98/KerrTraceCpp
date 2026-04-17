@@ -19,26 +19,31 @@ if [ ! -d "${LIBTORCH_LIB}" ]; then
   exit 1
 fi
 
-# Try a few common libomp locations on macOS.
-OMP_CANDIDATES=(
-  "${ROOT_DIR}/libtorch/lib/libomp.dylib"
-  "${ROOT_DIR}/../KerrTrace/.venv/lib/python3.13/site-packages/torch/lib/libomp.dylib"
-  "/opt/homebrew/opt/libomp/lib/libomp.dylib"
-  "/usr/local/opt/libomp/lib/libomp.dylib"
-)
+OS="$(uname -s)"
 
-OMP_DIR=""
-for p in "${OMP_CANDIDATES[@]}"; do
-  if [ -f "$p" ]; then
-    OMP_DIR="$(dirname "$p")"
-    break
+if [ "${OS}" = "Darwin" ]; then
+  # macOS: try a few common libomp locations
+  OMP_CANDIDATES=(
+    "${ROOT_DIR}/libtorch/lib/libomp.dylib"
+    "${ROOT_DIR}/../KerrTrace/.venv/lib/python3.13/site-packages/torch/lib/libomp.dylib"
+    "/opt/homebrew/opt/libomp/lib/libomp.dylib"
+    "/usr/local/opt/libomp/lib/libomp.dylib"
+  )
+  OMP_DIR=""
+  for p in "${OMP_CANDIDATES[@]}"; do
+    if [ -f "$p" ]; then
+      OMP_DIR="$(dirname "$p")"
+      break
+    fi
+  done
+  if [ -n "${OMP_DIR}" ]; then
+    export DYLD_LIBRARY_PATH="${LIBTORCH_LIB}:${OMP_DIR}:${DYLD_LIBRARY_PATH:-}"
+  else
+    export DYLD_LIBRARY_PATH="${LIBTORCH_LIB}:${DYLD_LIBRARY_PATH:-}"
   fi
-done
-
-if [ -n "${OMP_DIR}" ]; then
-  export DYLD_LIBRARY_PATH="${LIBTORCH_LIB}:${OMP_DIR}:${DYLD_LIBRARY_PATH:-}"
 else
-  export DYLD_LIBRARY_PATH="${LIBTORCH_LIB}:${DYLD_LIBRARY_PATH:-}"
+  # Linux
+  export LD_LIBRARY_PATH="${LIBTORCH_LIB}:${LD_LIBRARY_PATH:-}"
 fi
 
 exec "${BIN}" "$@"

@@ -63,11 +63,20 @@ endif()
 # ── Install ───────────────────────────────────────────────────────────────────
 install(TARGETS kerrtrace DESTINATION bin)
 
-# ── Platform-specific RPATH fix for LibTorch shared libs ─────────────────────
+# ── Platform-specific shared library handling ─────────────────────────────────
 if(APPLE)
     set_target_properties(kerrtrace PROPERTIES
         BUILD_WITH_INSTALL_RPATH TRUE
         INSTALL_RPATH "@loader_path/../lib"
+    )
+elseif(WIN32)
+    # Windows has no RPATH: copy LibTorch DLLs next to the executable at build time.
+    file(GLOB _torch_dlls "${TORCH_INSTALL_PREFIX}/lib/*.dll")
+    add_custom_command(TARGET kerrtrace POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${_torch_dlls}
+            $<TARGET_FILE_DIR:kerrtrace>
+        COMMENT "Copying LibTorch DLLs to binary directory"
     )
 elseif(UNIX)
     set_target_properties(kerrtrace PROPERTIES
